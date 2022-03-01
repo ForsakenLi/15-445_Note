@@ -32,12 +32,15 @@ erase调用导致iter指向的对应节点被删除了，后面使用的iter指�
 
 2. dirty位的更新问题
 
-> 这里主要考虑两个case: 1. A、B在时刻1、2读取page，A在时刻3放回page并修改该page，B在时刻4放回并没有修改page，那么这个页在时刻4就是不脏的；2. A在时刻1-3取走并修改放回了该page，B在4～5取走并无修改的放回了page，那么这个页在时刻5还是脏的，因为B读取的是经过A修改的脏页
+> 这里主要考虑两个case: 
+>
+> #1. A、B在时刻1、2读取page，A在时刻3放回page并修改该page，B在时刻4放回并没有修改page，那么这个页在时刻4就是不脏的;
+> 
+> #2. A在时刻1-3取走并修改放回了该page，B在4～5取走并无修改的放回了page，那么这个页在时刻5还是脏的，因为B读取的是经过A修改的脏页;
 
-在一开始，我认为dirty位的更新逻辑应该是根据unpin返回时，根据用户给定的is_dirty是dirty就在pages_里保存为dirty=true，不是就保存dirty=false。后来我发现这种方式是错误的，因为假如后续一个用户读取一个在内存中的已经被标记为脏的页时，假如其没有对该页进行修改，那么其unpin这个页时的is_dirty参数为false，如果这个false覆盖了原先的is_dirty=true,
-就会导致先前的修改丢失，所以需要加上一个判断, 仅有在unpin时回传的参数is_dirty为true时才进行覆盖。
+在一开始，我认为dirty位的更新逻辑应该是根据unpin返回时，根据用户给定的is_dirty是dirty就在pages_里保存为dirty=true，不是就保存dirty=false。后来我发现这种方式是错误的，因为假如后续一个用户读取一个在内存中的已经被标记为脏的页时，假如其没有对该页进行修改，那么其unpin这个页时的is_dirty参数为false，如果这个false覆盖了原先的is_dirty=true, 就会导致先前的修改丢失，所以需要加上一个判断, 仅有在unpin时回传的参数is_dirty为true时才进行覆盖。
 
-> 这种做法事实上会导致
+> 这种做法事实上会导致case#1的page被多余的flush回了磁盘，但是不这么做则会使得case#2的page未被标记为Dirty, 这是会导致异常的。
 
 最终排名:
 ![rank](img/p1_1.jpg)
